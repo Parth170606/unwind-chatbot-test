@@ -72,7 +72,7 @@ function getPredefinedReply(message) {
 }
 
 const CREATOR_RESPONSE =
-  "Unwind is the brainchild of Harshita Arava, Co-founder and CEO. It was developed by Atharva Padwal, Co-founder and Co-CEO, and Parth Nikam, Co-founder and CTO.";
+  "Unwind is the brainchild of Harshita Arava, Co-founder and CEO of Unwind. It was developed by Atharva Padwal, Co-founder and Co-CEO of Unwind, and Parth Nikam, Co-founder and CTO of Unwind.";
 
 function isCreatorQuestion(message) {
   const text = normalize(message);
