@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "dev:all": "concurrently -k -n NODE,PYTHON \"npm:dev\" \"python -m uvicorn app:app --reload --port 8000\""
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -14,5 +15,9 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "groq-sdk": "^0.9.0"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6"
   }
 }
+

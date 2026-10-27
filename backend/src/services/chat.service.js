@@ -1,4 +1,3 @@
-
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -6,7 +5,7 @@ import { generateProviderReply } from "./provider.service.js";
 import { inspectUserMessage, guardGeneratedReply } from "./safety.service.js";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
-const dataDir = path.resolve(currentDir, "../data");
+const dataDir = path.resolve(currentDir, "../data/chatbot");
 
 function readIntents(filename) {
   const filePath = path.join(dataDir, filename);
@@ -72,7 +71,7 @@ function getPredefinedReply(message) {
 }
 
 const CREATOR_RESPONSE =
-  "Unwind is the brainchild of Harshita Arava, Co-founder and CEO of Unwind. It was developed by Atharva Padwal, Co-founder and Co-CEO of Unwind, and Parth Nikam, Co-founder and CTO of Unwind.";
+  "Unwind was envisioned by Harshita Arava, Co-Founder & CEO, and brought to life through the collaborative efforts of Atharva Padwal, Co-Founder & Co-CEO, and Parth Nikam, Co-Founder & CTO. Combining visionary leadership, strategic execution, and technological expertise, the founding team transformed a shared vision into an innovative wellness platform designed to redefine the way individuals approach mental well-being.";
 
 function isCreatorQuestion(message) {
   const text = normalize(message);
@@ -82,6 +81,40 @@ function isCreatorQuestion(message) {
     /\b(who is behind (this )?(website|site|unwind))\b/.test(text) ||
     /\b(who (are|is) the (creator|creators|founder|founders) of (unwind|this website))\b/.test(text)
   );
+}
+
+async function getPythonResponse(message, history = []) {
+  const baseUrl = (
+    process.env.PYTHON_CHATBOT_URL || "http://127.0.0.1:8000"
+  ).replace(/\/$/, "");
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+
+  try {
+    const response = await fetch(`${baseUrl}/api/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ message, history }),
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`Python chatbot returned HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (typeof data.reply !== "string" || !data.reply.trim()) {
+      throw new Error("Python chatbot returned an invalid reply");
+    }
+
+    return data;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function handleChatMessage({ message, history = [] }) {
@@ -124,6 +157,33 @@ export async function handleChatMessage({ message, history = [] }) {
 
     if (predefined) {
       return predefined;
+    }
+  }
+
+    // Route Unwind-specific questions to the Python chatbot.
+  const asksAboutUnwind =
+    /\b(unwind)\b/i.test(normalizedMessage) &&
+    /\b(what|tell|describe|explain|about|platform|website|app|is|something)\b/i.test(
+      normalizedMessage
+    );
+
+  if (asksAboutUnwind) {
+    try {
+      const pythonResult = await getPythonResponse(
+        normalizedMessage,
+        history
+      );
+
+      return {
+        reply: guardGeneratedReply(pythonResult.reply),
+        source: "python",
+        provider: pythonResult.provider || "python",
+        intent: "about_unwind"
+      };
+    } catch (error) {
+      console.error("Python chatbot request failed:", error.message);
+
+      // Continue to the existing JavaScript AI provider below.
     }
   }
 
