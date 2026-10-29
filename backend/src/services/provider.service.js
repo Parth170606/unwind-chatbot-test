@@ -1,4 +1,3 @@
-
 import Groq from "groq-sdk";
 
 const SYSTEM_PROMPT = `
@@ -153,45 +152,68 @@ async function generateCloudflare(history) {
   return { reply, provider: "cloudflare", model };
 }
 
-async function generateCustomLlm(history) {
-  const url = process.env.CUSTOM_LLM_URL;
 
-  if (process.env.CUSTOM_LLM_ENABLED !== "true" || !url) {
-    throw new Error("Custom LLM is disabled or CUSTOM_LLM_URL is missing.");
+async function generateCustomLlm(history) {
+  const baseUrl = process.env.CUSTOM_LLM_URL?.trim().replace(/\/+$/, "");
+  const apiKey = process.env.CUSTOM_LLM_API_KEY?.trim();
+
+  if (process.env.CUSTOM_LLM_ENABLED !== "true") {
+    throw new Error("Custom LLM is disabled.");
+  }
+
+  if (!baseUrl) {
+    throw new Error("CUSTOM_LLM_URL is not configured.");
+  }
+
+  if (!apiKey) {
+    throw new Error("CUSTOM_LLM_API_KEY is not configured.");
   }
 
   const latestUserMessage = [...history]
     .reverse()
     .find((item) => item.role === "user")?.content;
 
-  const response = await fetch(url, {
+  if (!latestUserMessage) {
+    throw new Error("No user message was provided to the custom LLM.");
+  }
+
+  const timeoutMs = Number(
+    process.env.CUSTOM_LLM_TIMEOUT_MS || 120000
+  );
+
+  const response = await fetch(`${baseUrl}/v1/chat`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-API-Key": apiKey
+    },
     body: JSON.stringify({
-      message: latestUserMessage,
-      history,
-      system_prompt: SYSTEM_PROMPT
+      message: latestUserMessage
     }),
-    signal: AbortSignal.timeout(
-      Number(process.env.CUSTOM_LLM_TIMEOUT_MS || 60000)
-    )
+    signal: AbortSignal.timeout(timeoutMs)
   });
 
   if (!response.ok) {
-    throw new Error(`Custom LLM HTTP ${response.status}`);
+    const errorBody = await response.text().catch(() => "");
+    throw new Error(
+      `Custom LLM HTTP ${response.status}` +
+      (errorBody ? `: ${errorBody.slice(0, 300)}` : "")
+    );
   }
 
   const data = await response.json();
-  const reply = data.reply || data.response || data.generated_text;
+  const reply = data.reply;
 
   if (typeof reply !== "string" || !reply.trim()) {
-    throw new Error("Custom LLM returned no recognized reply field.");
+    throw new Error("Custom LLM returned an invalid reply.");
   }
+
+  console.log("Custom LLM fallback succeeded.");
 
   return {
     reply: reply.trim(),
     provider: "custom_llm",
-    model: "UNWIND custom adapter"
+    model: "Qwen3-1.7B + UNWIND LoRA"
   };
 }
 

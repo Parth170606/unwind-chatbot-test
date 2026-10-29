@@ -1,4 +1,3 @@
-
 const blockedRequestPatterns = [
   /\b(write|generate|show|give|create|debug)\b.{0,40}\b(code|script|program|source code)\b/i,
   /\b(python|javascript|typescript|java|c\+\+)\s+(code|script|program)\b/i,
