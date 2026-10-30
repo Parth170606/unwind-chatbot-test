@@ -19,6 +19,7 @@ export async function getUserConversations(userId) {
         updated_at
       FROM chatbot_conversations
       WHERE user_id = $1
+  AND conversation_status = 'active'
       ORDER BY
   is_pinned DESC,
   last_message_at DESC NULLS LAST,
@@ -233,6 +234,79 @@ export async function setConversationPinned(
         updated_at
     `,
     [isPinned, conversationId, userId]
+  );
+
+  if (result.rows.length === 0) {
+    const error = new Error(
+      "Conversation not found or unavailable."
+    );
+    error.status = 404;
+    throw error;
+  }
+
+  return result.rows[0];
+}
+
+
+/**
+ * Fetch archived conversations belonging to a user.
+ */
+export async function getArchivedConversations(userId) {
+  const result = await pool.query(
+    `
+      SELECT
+        conversation_id,
+        title,
+        is_title_generated,
+        conversation_status,
+        total_messages,
+        first_message_at,
+        last_message_at,
+        is_pinned,
+        created_at,
+        updated_at
+      FROM chatbot_conversations
+      WHERE user_id = $1
+        AND conversation_status = 'archived'
+      ORDER BY
+        last_message_at DESC NULLS LAST,
+        updated_at DESC
+    `,
+    [userId]
+  );
+
+  return result.rows;
+}
+
+
+/**
+ * Archive or restore a conversation belonging to the user.
+ */
+export async function setConversationArchived(
+  userId,
+  conversationId,
+  shouldArchive
+) {
+  const currentStatus = shouldArchive ? "active" : "archived";
+  const newStatus = shouldArchive ? "archived" : "active";
+
+  const result = await pool.query(
+    `
+      UPDATE chatbot_conversations
+      SET
+        conversation_status = $1,
+        updated_at = NOW()
+      WHERE conversation_id = $2
+        AND user_id = $3
+        AND conversation_status = $4
+      RETURNING
+        conversation_id,
+        title,
+        conversation_status,
+        is_pinned,
+        updated_at
+    `,
+    [newStatus, conversationId, userId, currentStatus]
   );
 
   if (result.rows.length === 0) {

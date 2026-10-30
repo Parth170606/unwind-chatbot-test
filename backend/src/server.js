@@ -10,7 +10,9 @@ import {
   getConversationHistory,
   getRecentConversationContext,
   renameConversation,
-  setConversationPinned
+  setConversationPinned,
+  getArchivedConversations,
+  setConversationArchived
 } from "./services/chatHistory.service.js";
 
 const app = express();
@@ -117,6 +119,34 @@ app.get("/api/conversations", authenticate, async (req, res) => {
   }
 });
 
+
+/**
+ * Fetch archived conversations.
+ */
+app.get(
+  "/api/conversations/archived",
+  authenticate,
+  async (req, res) => {
+    try {
+      const conversations = await getArchivedConversations(
+        req.user.user_id
+      );
+
+      res.json({
+        success: true,
+        conversations
+      });
+
+    } catch (error) {
+      console.error("Fetch archived conversations error:", error);
+
+      res.status(500).json({
+        success: false,
+        error: "Unable to fetch archived conversations."
+      });
+    }
+  }
+);
 
 app.patch(
   "/api/conversations/:conversationId/rename",
@@ -261,6 +291,97 @@ app.patch(
         error: error.status
           ? error.message
           : "Unable to unpin conversation."
+      });
+    }
+  }
+);
+
+
+/**
+ * Archive a conversation.
+ */
+app.patch(
+  "/api/conversations/:conversationId/archive",
+  authenticate,
+  async (req, res) => {
+    try {
+      const { conversationId } = req.params;
+
+      const uuidRegex =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+      if (!uuidRegex.test(conversationId)) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid conversation ID."
+        });
+      }
+
+      const conversation = await setConversationArchived(
+        req.user.user_id,
+        conversationId,
+        true
+      );
+
+      res.json({
+        success: true,
+        message: "Conversation archived successfully.",
+        conversation
+      });
+
+    } catch (error) {
+      console.error("Archive conversation error:", error);
+
+      res.status(error.status || 500).json({
+        success: false,
+        error: error.status
+          ? error.message
+          : "Unable to archive conversation."
+      });
+    }
+  }
+);
+
+/**
+ * Restore an archived conversation.
+ */
+app.patch(
+  "/api/conversations/:conversationId/unarchive",
+  authenticate,
+  async (req, res) => {
+    try {
+      const { conversationId } = req.params;
+
+      const uuidRegex =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+      if (!uuidRegex.test(conversationId)) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid conversation ID."
+        });
+      }
+
+      const conversation = await setConversationArchived(
+        req.user.user_id,
+        conversationId,
+        false
+      );
+
+      res.json({
+        success: true,
+        message: "Conversation restored successfully.",
+        conversation
+      });
+
+    } catch (error) {
+      console.error("Restore conversation error:", error);
+
+      res.status(error.status || 500).json({
+        success: false,
+        error: error.status
+          ? error.message
+          : "Unable to restore conversation."
       });
     }
   }
