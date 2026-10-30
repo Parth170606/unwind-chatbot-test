@@ -1,5 +1,43 @@
 import pool from "../config/db.js";
 
+/**
+ * Generate a clean conversation title from the first user message.
+ */
+function generateConversationTitle(message) {
+  const cleanedMessage = String(message || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^[\s"'“”‘’]+|[\s"'“”‘’]+$/g, "");
+
+  if (!cleanedMessage) {
+    return "New Chat";
+  }
+
+  // Use the first sentence as the conversation title.
+  const sentenceMatch = cleanedMessage.match(/^.*?[.!?](?=\s|$)/);
+
+  let title = sentenceMatch
+    ? sentenceMatch[0]
+    : cleanedMessage;
+
+  title = title.replace(/[.!?]+$/, "").trim();
+
+  // Keep the title within 80 characters.
+  if (title.length > 80) {
+    let shortened = title.slice(0, 77);
+    const lastSpace = shortened.lastIndexOf(" ");
+
+    if (lastSpace > 40) {
+      shortened = shortened.slice(0, lastSpace);
+    }
+
+    title = `${shortened}...`;
+  }
+
+  // Capitalize the first character.
+  return title.charAt(0).toUpperCase() + title.slice(1);
+}
+
 export async function persistChatTurn({
   userId,
   conversationId = null,
@@ -39,24 +77,22 @@ export async function persistChatTurn({
 
       conversation = existing.rows[0];
     } else {
-      const title =
-        userMessage.length > 80
-          ? `${userMessage.slice(0, 77)}...`
-          : userMessage;
+      const title = generateConversationTitle(userMessage);
 
-      const created = await client.query(
-        `
-          INSERT INTO chatbot_conversations (
-            user_id,
-            title,
-            first_message_at,
-            last_message_at
-          )
-          VALUES ($1, $2, NOW(), NOW())
-          RETURNING conversation_id
-        `,
-        [userId, title]
-      );
+const created = await client.query(
+  `
+    INSERT INTO chatbot_conversations (
+      user_id,
+      title,
+      is_title_generated,
+      first_message_at,
+      last_message_at
+    )
+    VALUES ($1, $2, TRUE, NOW(), NOW())
+    RETURNING conversation_id
+  `,
+  [userId, title]
+);
 
       conversation = created.rows[0];
     }
