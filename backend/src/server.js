@@ -8,7 +8,9 @@ import { persistChatTurn } from "./services/chatPersistence.service.js";
 import {
   getUserConversations,
   getConversationHistory,
-  getRecentConversationContext
+  getRecentConversationContext,
+  renameConversation,
+  setConversationPinned
 } from "./services/chatHistory.service.js";
 
 const app = express();
@@ -114,6 +116,155 @@ app.get("/api/conversations", authenticate, async (req, res) => {
     });
   }
 });
+
+
+app.patch(
+  "/api/conversations/:conversationId/rename",
+  authenticate,
+  async (req, res) => {
+    try {
+      const { conversationId } = req.params;
+      const { title } = req.body || {};
+
+      const uuidRegex =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+      if (!uuidRegex.test(conversationId)) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid conversation ID."
+        });
+      }
+
+      if (typeof title !== "string" || !title.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: "Please provide a conversation title."
+        });
+      }
+
+      if (title.trim().length > 100) {
+        return res.status(400).json({
+          success: false,
+          error: "Conversation title cannot exceed 100 characters."
+        });
+      }
+
+      const conversation = await renameConversation(
+        req.user.user_id,
+        conversationId,
+        title
+      );
+
+      res.json({
+        success: true,
+        message: "Conversation renamed successfully.",
+        conversation
+      });
+
+    } catch (error) {
+      console.error("Rename conversation error:", error);
+
+      res.status(error.status || 500).json({
+        success: false,
+        error: error.status
+          ? error.message
+          : "Unable to rename conversation."
+      });
+    }
+  }
+);
+
+
+/**
+ * Pin a conversation.
+ */
+app.patch(
+  "/api/conversations/:conversationId/pin",
+  authenticate,
+  async (req, res) => {
+    try {
+      const { conversationId } = req.params;
+
+      const uuidRegex =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+      if (!uuidRegex.test(conversationId)) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid conversation ID."
+        });
+      }
+
+      const conversation = await setConversationPinned(
+        req.user.user_id,
+        conversationId,
+        true
+      );
+
+      res.json({
+        success: true,
+        message: "Conversation pinned successfully.",
+        conversation
+      });
+
+    } catch (error) {
+      console.error("Pin conversation error:", error);
+
+      res.status(error.status || 500).json({
+        success: false,
+        error: error.status
+          ? error.message
+          : "Unable to pin conversation."
+      });
+    }
+  }
+);
+
+/**
+ * Unpin a conversation.
+ */
+app.patch(
+  "/api/conversations/:conversationId/unpin",
+  authenticate,
+  async (req, res) => {
+    try {
+      const { conversationId } = req.params;
+
+      const uuidRegex =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+      if (!uuidRegex.test(conversationId)) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid conversation ID."
+        });
+      }
+
+      const conversation = await setConversationPinned(
+        req.user.user_id,
+        conversationId,
+        false
+      );
+
+      res.json({
+        success: true,
+        message: "Conversation unpinned successfully.",
+        conversation
+      });
+
+    } catch (error) {
+      console.error("Unpin conversation error:", error);
+
+      res.status(error.status || 500).json({
+        success: false,
+        error: error.status
+          ? error.message
+          : "Unable to unpin conversation."
+      });
+    }
+  }
+);
 
 app.get(
   "/api/conversations/:conversationId/messages",
