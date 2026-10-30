@@ -319,3 +319,47 @@ export async function setConversationArchived(
 
   return result.rows[0];
 }
+
+
+/**
+ * Permanently delete a conversation belonging to the user.
+ * Associated messages are deleted through database CASCADE.
+ * Safety events are preserved through ON DELETE SET NULL.
+ */
+export async function deleteConversation(
+  userId,
+  conversationId
+) {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const result = await client.query(
+      `
+        DELETE FROM chatbot_conversations
+        WHERE conversation_id = $1
+          AND user_id = $2
+        RETURNING conversation_id, title
+      `,
+      [conversationId, userId]
+    );
+
+    if (result.rows.length === 0) {
+      const error = new Error("Conversation not found.");
+      error.status = 404;
+      throw error;
+    }
+
+    await client.query("COMMIT");
+
+    return result.rows[0];
+
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+
+  } finally {
+    client.release();
+  }
+}

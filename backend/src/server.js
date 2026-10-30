@@ -12,7 +12,8 @@ import {
   renameConversation,
   setConversationPinned,
   getArchivedConversations,
-  setConversationArchived
+  setConversationArchived,
+  deleteConversation
 } from "./services/chatHistory.service.js";
 
 const app = express();
@@ -97,6 +98,51 @@ app.post("/api/chat", authenticate, async (req, res) => {
     });
   }
 });
+
+
+/**
+ * Permanently delete a conversation.
+ */
+app.delete(
+  "/api/conversations/:conversationId",
+  authenticate,
+  async (req, res) => {
+    try {
+      const { conversationId } = req.params;
+
+      const uuidRegex =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+      if (!uuidRegex.test(conversationId)) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid conversation ID."
+        });
+      }
+
+      const conversation = await deleteConversation(
+        req.user.user_id,
+        conversationId
+      );
+
+      res.json({
+        success: true,
+        message: "Conversation permanently deleted.",
+        conversation
+      });
+
+    } catch (error) {
+      console.error("Delete conversation error:", error);
+
+      res.status(error.status || 500).json({
+        success: false,
+        error: error.status
+          ? error.message
+          : "Unable to delete conversation."
+      });
+    }
+  }
+);
 
 app.get("/api/conversations", authenticate, async (req, res) => {
   try {
